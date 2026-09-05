@@ -1,0 +1,46 @@
+# --- never commit: credentials and session state -----------------------
+# Chrome profile: holds Cookies, Login Data, and the Cloudflare clearance
+# Indeed depends on. Keep it locally (see README), never publish it.
+.browser-profile/
+*.cookies
+cookies.txt
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+secrets*.json
+
+# --- local data, not source -------------------------------------------
+jobfeed.db
+*.db
+*.sqlite
+*.sqlite3
+jobfeed.log
+*.log
+nohup.out
+
+# --- python -----------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# --- editors / os -----------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+
+# --- ruflo (local tooling, never committed) ----------------------------
+# Everything `ruflo init` generates stays on this machine: its Claude Code
+# config, skills, agents, commands, runtime state and SQLite memory store.
+# Anchored to the repo root (leading /) -- unanchored `CLAUDE.md` would also
+# swallow frontend/CLAUDE.md, which is Next.js's own generated file, not ruflo's.
+/CLAUDE.md
+.claude/
+.claude-flow/
+.agents/
+.swarm/
+/.mcp.json

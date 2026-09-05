@@ -1,0 +1,340 @@
+{
+  "port": 8765,
+  "poll_minutes": 10,
+  "filters": {
+    "max_age_days": 2,
+    "max_experience_years": 0,
+    "exclude_titles": [
+      "senior",
+      "sr.",
+      "sr ",
+      "lead",
+      "principal",
+      "staff engineer",
+      "architect",
+      "manager",
+      "head of",
+      " iii",
+      " iv",
+      "vp ",
+      "director"
+    ],
+    "exclude_nontech": [
+      "marketing",
+      "sales",
+      "business development",
+      "content writ",
+      "content",
+      "social media",
+      "hr ",
+      "human resource",
+      "recruit",
+      "talent acquisition",
+      "finance",
+      "accounts",
+      "accounting",
+      "operations",
+      "graphic design",
+      "video edit",
+      "photograph",
+      "telecall",
+      "bpo",
+      "customer support",
+      "customer service",
+      "teaching",
+      "tutor",
+      "counsel",
+      "legal",
+      "equity",
+      "research analyst",
+      "digital marketing",
+      "seo",
+      "copywrit",
+      "brand",
+      "public relations",
+      "logistics",
+      "supply chain",
+      "administrative",
+      "receptionist",
+      "nursing",
+      "medical",
+      "interior design",
+      "fashion"
+    ],
+    "tech_terms": [
+      "software",
+      "developer",
+      "development",
+      "engineer",
+      "engineering",
+      "programmer",
+      "programming",
+      "backend",
+      "back end",
+      "frontend",
+      "front end",
+      "full stack",
+      "fullstack",
+      "web dev",
+      "sde",
+      "sdet",
+      "python",
+      "django",
+      "flask",
+      "fastapi",
+      "java",
+      "node",
+      "nodejs",
+      "node.js",
+      "javascript",
+      "typescript",
+      "react",
+      "react native",
+      "angular",
+      "vue",
+      "php",
+      "laravel",
+      "ruby",
+      "rails",
+      "golang",
+      "rust",
+      "c++",
+      "c#",
+      ".net",
+      "android",
+      "ios",
+      "flutter",
+      "mobile app",
+      "data science",
+      "data analyst",
+      "data engineer",
+      "machine learning",
+      "deep learning",
+      "artificial intelligence",
+      "ai/ml",
+      "llm",
+      "nlp",
+      "devops",
+      "cloud",
+      "aws",
+      "azure",
+      "gcp",
+      "kubernetes",
+      "docker",
+      "sql",
+      "database",
+      "mongodb",
+      "postgresql",
+      "qa",
+      "quality assurance",
+      "test engineer",
+      "testing",
+      "automation",
+      "cybersecurity",
+      "security",
+      "blockchain",
+      "api",
+      "computer science",
+      "ui/ux",
+      "wordpress",
+      "shopify",
+      "embedded",
+      "iot",
+      "linux",
+      "system administrator",
+      "site reliability",
+      "power bi",
+      "tableau",
+      "prompt engineering",
+      "technology",
+      "tech"
+    ],
+    "exclude_companies": [
+      "pledge india",
+      "women first india",
+      "nayepankh",
+      "hope behind tails",
+      "basti ki pathshala",
+      "queens of change"
+    ],
+    "jobs_first": true,
+    "require_checked": [
+      "indeed"
+    ]
+  },
+  "sources": {
+    "internshala": {
+      "enabled": true,
+      "queries": [
+        {
+          "path": "jobs/backend-development-jobs"
+        },
+        {
+          "path": "jobs/software-development-jobs"
+        },
+        {
+          "path": "jobs/full-stack-development-jobs"
+        },
+        {
+          "path": "jobs/java-development-jobs"
+        },
+        {
+          "path": "jobs/frontend-development-jobs"
+        },
+        {
+          "path": "jobs/computer-science-jobs"
+        },
+        {
+          "path": "jobs/fresher-jobs"
+        },
+        {
+          "kind": "internships",
+          "keyword": "backend"
+        },
+        {
+          "kind": "internships",
+          "keyword": "python"
+        },
+        {
+          "kind": "internships",
+          "keyword": "web development"
+        },
+        {
+          "kind": "internships",
+          "keyword": "software development"
+        },
+        {
+          "kind": "internships",
+          "keyword": "full stack"
+        },
+        {
+          "kind": "internships",
+          "keyword": "java"
+        }
+      ]
+    },
+    "foundit": {
+      "enabled": true,
+      "queries": [
+        {
+          "query": "backend developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "python developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "software engineer fresher",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "full stack developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "java developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "graduate engineer trainee",
+          "locations": "india",
+          "limit": 30
+        }
+      ]
+    },
+    "naukri": {
+      "enabled": true,
+      "queries": [
+        {
+          "keyword": "backend developer",
+          "pages": 3
+        },
+        {
+          "keyword": "python developer",
+          "pages": 3
+        },
+        {
+          "keyword": "software developer",
+          "pages": 3
+        },
+        {
+          "keyword": "full stack developer",
+          "pages": 2
+        },
+        {
+          "keyword": "java developer",
+          "pages": 2
+        },
+        {
+          "keyword": "software engineer",
+          "pages": 2
+        }
+      ],
+      "experience": 0
+    },
+    "indeed": {
+      "enabled": true,
+      "queries": [
+        {
+          "keyword": "backend developer",
+          "location": "India"
+        },
+        {
+          "keyword": "python developer",
+          "location": "India"
+        },
+        {
+          "keyword": "software engineer fresher",
+          "location": "India"
+        },
+        {
+          "keyword": "full stack developer",
+          "location": "India"
+        }
+      ],
+      "max_desc_fetch": 60
+    },
+    "cutshort": {
+      "enabled": true,
+      "queries": [
+        {
+          "path": "software-development-jobs"
+        },
+        {
+          "path": "python-jobs"
+        },
+        {
+          "path": "javascript-jobs"
+        }
+      ]
+    },
+    "wellfound": {
+      "enabled": true,
+      "queries": [
+        {
+          "path": "role/l/software-engineer/india"
+        },
+        {
+          "path": "role/l/backend-engineer/india"
+        },
+        {
+          "path": "role/l/full-stack-engineer/india"
+        }
+      ]
+    },
+    "yc": {
+      "enabled": true,
+      "queries": [
+        {
+          "path": "jobs/role/software-engineer"
+        }
+      ]
+    }
+  }
+}

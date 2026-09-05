@@ -1,0 +1,136 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- design tokens ----------
+   Plain custom properties (not @theme keys) so they can be redefined per
+   theme; @theme inline below re-exposes each as a Tailwind color so
+   `bg-surface`, `text-text-muted`, `border-border` etc. all work. */
+:root {
+  --bg: #e9ebee; --surface: #ffffff; --surface-2: #eef0f3;
+  --border: #dadde3; --border-strong: #c5cad2;
+  --text: #111827; --text-muted: #374151; --text-dim: #5c6472; --text-faint: #8891a0;
+  --accent: #2563eb; --accent-soft: #e8effd; --accent-text: #1d4ed8;
+  --danger: #dc2626; --danger-soft: #fef2f2;
+  --success: #15803d; --success-soft: #f0fdf4;
+  --warning: #d97706; --warning-soft: #fffbeb;
+  --violet: #7c3aed; --violet-soft: #f5f3ff;
+  /* ---------- chart roles ----------
+     Charts are written against these, never raw hex, so both themes swap in
+     one place. The three outcome steps were picked with the data-viz
+     validator rather than by eye: the app's own success/danger tokens sit at
+     deutan Delta E 1.9 of each other on the dark surface -- red/green
+     confusion, the classic one -- so dark mode gets its own steps (12.2)
+     instead of an automatic flip of the light ones. Magnitude bars are a
+     single hue: bar length carries the value, so colour is free to stay out
+     of it. */
+  --viz-bar: #2563eb; --viz-track: #e8eaee; --viz-grid: #dfe3e9;
+  --viz-active: #2563eb; --viz-won: #15803d; --viz-lost: #dc2626;
+  --shadow-card: 0 1px 2px rgba(17,24,39,.06);
+  --shadow-card-hover: 0 4px 14px rgba(17,24,39,.1);
+  --shadow-pop: 0 8px 28px rgba(17,24,39,.16);
+  color-scheme: light;
+}
+.dark {
+  --bg: #0b0d12; --surface: #12151c; --surface-2: #171b24;
+  --border: #222835; --border-strong: #2d3442;
+  --text: #e7e9ee; --text-muted: #c3c8d3; --text-dim: #8a92a3; --text-faint: #5f6779;
+  --accent: #6ea8ff; --accent-soft: #152238; --accent-text: #8db8ff;
+  --danger: #ff6b62; --danger-soft: #2a1517;
+  --success: #4cc668; --success-soft: #10231a;
+  --warning: #f5b83d; --warning-soft: #2a2210;
+  --violet: #a78bfa; --violet-soft: #1a1626;
+  --viz-bar: #4f93e8; --viz-track: #1c212b; --viz-grid: #242b38;
+  --viz-active: #4f93e8; --viz-won: #3fa862; --viz-lost: #a9453d;
+  --shadow-card: none;
+  --shadow-card-hover: 0 4px 14px rgba(0,0,0,.4);
+  --shadow-pop: 0 10px 32px rgba(0,0,0,.55);
+  color-scheme: dark;
+}
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-text-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-violet: var(--violet);
+  --color-viz-bar: var(--viz-bar);
+  --color-viz-track: var(--viz-track);
+  --color-viz-grid: var(--viz-grid);
+  --color-viz-active: var(--viz-active);
+  --color-viz-won: var(--viz-won);
+  --color-viz-lost: var(--viz-lost);
+  --color-violet-soft: var(--violet-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+}
+* { scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; border: 2px solid transparent; }
+
+/* Still scrollable (wheel, trackpad, drag, keyboard) -- just no visible
+   track/thumb. Used on the filter sidebar, which scrolls often enough while
+   flipping through sections that a bar sitting over the content read as
+   visual clutter rather than a useful affordance. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+kbd {
+  font: 11px ui-monospace, Menlo, Consolas, monospace;
+  background: var(--surface-2); border: 1px solid var(--border-strong); border-bottom-width: 2px;
+  border-radius: 4px; padding: 1px 5px; color: var(--text-muted);
+}
+
+/* Tailwind v4's preflight resets buttons/labels/selects to `cursor: default`
+   to match raw browser behaviour -- restore the pointer everywhere something
+   is actually clickable, so it doesn't have to be repeated as a utility
+   class on every button/label/summary in the app. */
+button:not(:disabled), [role="button"], summary, select,
+label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
+  cursor: pointer;
+}
+button:disabled { cursor: not-allowed; }
+
+/* A modal <dialog> centers itself via the UA stylesheet's `margin: auto`
+   inside its own `position:fixed; inset:0` box -- Tailwind's preflight
+   zeroes margin on every element, which silently breaks that and leaves
+   the dialog pinned to the top-left instead of centered. */
+dialog[open] { display: flex; flex-direction: column; margin: auto; }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+
+@keyframes toast-up { from { transform: translateY(8px); opacity: 0; } }
+.animate-toast-up { animation: toast-up .16s ease-out; }
+@keyframes pulse-soft { 50% { opacity: .35; } }
+.animate-pulse-soft { animation: pulse-soft 1s infinite; }
+
+/* Mount/display-change entrance: plays whenever the element goes from having
+   no box (unmounted, or display:none via the `hidden` utility) to being
+   rendered -- used for view switches, popovers and dialogs so they settle in
+   instead of snapping into place. */
+@keyframes fade-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fade-in .16s ease-out; }
+@keyframes pop-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+.animate-pop-in { animation: pop-in .12s ease-out; }
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-scrim-in { animation: scrim-in .15s ease-out; }
+dialog[open] { animation: pop-in .14s ease-out; }

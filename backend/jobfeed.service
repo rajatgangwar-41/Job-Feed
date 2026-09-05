@@ -1,0 +1,44 @@
+# jobfeed backend as a systemd *user* service. This only runs the poller +
+# API; the frontend (../frontend, Next.js) is started separately -- see
+# frontend/README.md.
+#
+#   cp jobfeed.service ~/.config/systemd/user/
+#   # then edit WorkingDirectory/ExecStart below for your actual clone path
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now jobfeed
+#   systemctl --user status jobfeed      # journalctl --user -u jobfeed -f
+#
+# To keep it running after you log out (otherwise the user manager stops it):
+#   loginctl enable-linger $USER
+#
+# Caveat: Naukri and Indeed need a real X display. DISPLAY=:0 below is your
+# graphical session, so those two sources work while you are logged in and
+# fail if you are not. For genuine 24/7 on a headless box, install Xvfb and
+# change ExecStart to:
+#   ExecStart=/usr/bin/xvfb-run -a %h/jobfeed/backend/.venv/bin/python app.py
+# Internshala and Foundit are plain HTTP and need none of this.
+#
+# %h does not expand inside quotes the way a shell would, so if your path
+# has spaces, hardcode the absolute path instead (systemd unit values are
+# not shell-quoted the same way).
+
+[Unit]
+Description=jobfeed backend - newest fresher tech openings, polled and served as JSON
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/jobfeed/backend
+ExecStart=%h/jobfeed/backend/.venv/bin/python app.py
+Environment=DISPLAY=:0
+Environment=PYTHONUNBUFFERED=1
+Restart=always
+RestartSec=20
+
+# a poll launches Chrome twice; give it room but don't let it wedge forever
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=default.target
