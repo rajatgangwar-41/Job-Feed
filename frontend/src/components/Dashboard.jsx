@@ -183,18 +183,27 @@ export default function Dashboard({ opsHref = null }) {
   // A page cannot tile browser windows, so "split view" is a popup opened at
   // the geometry of the right half of the screen, one window per listing
   // (uid-keyed so a second listing never navigates away the first).
+  // Returns true only if it opened the listing itself, so the caller knows
+  // whether to suppress the link's own navigation. Passing a null url means
+  // "just record that this was opened" -- the browser is handling the rest.
   const openJob = useCallback((uid, url) => {
-    let win = null;
-    if (prefs.split && typeof window !== "undefined") {
-      const w = Math.max(560, Math.floor(screen.availWidth / 2));
-      const h = screen.availHeight;
-      const left = (screen.availLeft || 0) + (screen.availWidth - w);
-      win = window.open(url, "jobfeed_" + uid.replace(/[^A-Za-z0-9]/g, "_"),
-        `popup=yes,width=${w},height=${h},left=${left},top=${screen.availTop || 0}`);
-    }
-    if (win) win.focus(); else window.open(url, "_blank", "noopener");
     const job = allJobs.find((j) => j.uid === uid);
     if (job && !job.opened) setFlag(uid, "opened", true, { quiet: true });
+    if (!url || !prefs.split || typeof window === "undefined") return false;
+
+    const w = Math.max(560, Math.floor(screen.availWidth / 2));
+    const h = screen.availHeight;
+    const left = (screen.availLeft || 0) + (screen.availWidth - w);
+    const win = window.open(url, "jobfeed_" + uid.replace(/[^A-Za-z0-9]/g, "_"),
+      `popup=yes,width=${w},height=${h},left=${left},top=${screen.availTop || 0}`);
+    // Blockers refuse `popup=yes` far more readily than a plain tab, and the
+    // old code answered a refusal with a second window.open in the same
+    // gesture -- which the browser had already spent, so the click opened
+    // nothing at all. Reporting the failure instead lets the anchor's
+    // target="_blank" do the ordinary thing.
+    if (!win) return false;
+    win.focus();
+    return true;
   }, [prefs.split, allJobs, setFlag]);
 
   // ---------- row menu ----------
@@ -280,7 +289,14 @@ export default function Dashboard({ opsHref = null }) {
         case "/": e.preventDefault(); searchRef.current?.focus(); searchRef.current?.select(); break;
         case "j": case "ArrowDown": e.preventDefault(); moveFocus(1); break;
         case "k": case "ArrowUp": e.preventDefault(); moveFocus(-1); break;
-        case "Enter": case "o": if (focusedJob) openJob(focusedJob.uid, focusedJob.url); break;
+        // No anchor behind this one, so the fallback the link gets for free
+        // has to be spelled out: if split view did not take the click, open
+        // an ordinary tab rather than silently doing nothing.
+        case "Enter": case "o":
+          if (focusedJob && !openJob(focusedJob.uid, focusedJob.url) && focusedJob.url) {
+            window.open(focusedJob.url, "_blank", "noopener");
+          }
+          break;
         case "s": if (focusedJob) setFlag(focusedJob.uid, "saved", !focusedJob.saved); break;
         case "a": if (focusedJob) setFlag(focusedJob.uid, "applied", !focusedJob.applied); break;
         case "r": if (focusedJob) setFlag(focusedJob.uid, "flagged", !focusedJob.flagged); break;

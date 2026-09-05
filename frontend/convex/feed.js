@@ -7,6 +7,10 @@ const DAY = 86400;
 // A ceiling on how much of the pool one request reads. The scraper caps its
 // push per source, so this only ever bites after many months of history.
 const MAX_ROWS = 2000;
+// Read budget, distinct from the return budget above: with a filter in the
+// loop, the number of rows examined and the number kept are no longer the
+// same quantity, and only one of them bounds the cost of the query.
+const MAX_SCAN = 8000;
 // Per-person caps. These exist so a board that has been used for years
 // cannot turn one query into an unbounded scan; they are far above what a
 // real tracker reaches.
@@ -70,17 +74,32 @@ export const get = query({
       status: { runs, open: 0, saved: 0, applied_24h: 0, applied_7d: 0, applied_all: 0 },
     };
     const cutoff = args.maxAgeDays ? now - args.maxAgeDays * DAY : null;
-    const rows = await (cutoff == null
+    const q = cutoff == null
       ? ctx.db.query("jobs").withIndex("by_when").order("desc")
-      : ctx.db.query("jobs").withIndex("by_when", (ix) => ix.gte("when", cutoff)).order("desc")
-    ).take(MAX_ROWS);
+      : ctx.db.query("jobs").withIndex("by_when", (ix) => ix.gte("when", cutoff)).order("desc");
 
+    // Filtered while streaming, not after a .take(). Taking MAX_ROWS first and
+    // filtering the result made the cap bite on rows that were then thrown
+    // away: at "any age" the newest 2000 were read and the fresher-only filter
+    // left however many of those survived, while a narrower age window read
+    // fewer rows and so lost fewer of them. The counts moved for a reason that
+    // had nothing to do with either filter, and the pool is unpruned and
+    // already past 1500, so it was going to start lying shortly.
+    //
+    // Now MAX_ROWS bounds what is returned and MAX_SCAN bounds what is read,
+    // which are the two things that actually need bounding.
+    //
     // Unknown experience passes, matching the SQL this replaces: Indeed
     // publishes none and is filtered at the URL instead.
     const maxExp = args.maxExpYears;
-    const listings = maxExp == null
-      ? rows
-      : rows.filter((r) => r.exp_min == null || r.exp_min <= maxExp);
+    const listings = [];
+    let scanned = 0;
+    for await (const r of q) {
+      if (++scanned > MAX_SCAN) break;
+      if (maxExp != null && r.exp_min != null && r.exp_min > maxExp) continue;
+      listings.push(r);
+      if (listings.length >= MAX_ROWS) break;
+    }
 
     const mine = await ctx.db.query("userJobs")
       .withIndex("by_user", (ix) => ix.eq("userId", userId)).take(MAX_TOUCHED);

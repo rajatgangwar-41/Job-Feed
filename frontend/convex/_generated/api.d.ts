@@ -15,6 +15,7 @@ import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_stages from "../lib/stages.js";
+import type * as repair from "../repair.js";
 import type * as stages from "../stages.js";
 import type * as users from "../users.js";
 
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   ingest: typeof ingest;
   "lib/auth": typeof lib_auth;
   "lib/stages": typeof lib_stages;
+  repair: typeof repair;
   stages: typeof stages;
   users: typeof users;
 }>;

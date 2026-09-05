@@ -53,9 +53,29 @@ export const push = internalMutation({
         when: j.posted_at ?? j.first_seen,
       };
       if (existing) {
-        // first_seen is the scraper's, and it is the older of the two by
-        // definition -- never let a re-push move a listing's age forward.
-        await ctx.db.patch(existing._id, { ...doc, first_seen: Math.min(existing.first_seen, j.first_seen) });
+        // A listing only ever gets older. Both timestamps are clamped to the
+        // earliest value ever seen, and `when` is then derived from the
+        // clamped pair rather than the incoming one.
+        //
+        // It matters more than it looks. `when` is what the age filter reads
+        // and what the board sorts on; `posted_at ?? first_seen` is what the
+        // card prints. Clamping one and not the other lets them disagree, and
+        // then a row counted as "last 7 days" displays as three weeks old --
+        // the filter and the card describing the same listing differently.
+        //
+        // Two ways they drift. Naukri relabels bumped listings "Just now", so
+        // posted_at arrives newer than it was (backend/store.py clamps this
+        // too, but a second machine's scraper has its own database and its own
+        // idea of both fields). And first_seen is that machine's first
+        // sighting, which for a fresh clone is today, not whenever this
+        // deployment first saw the listing.
+        const first_seen = Math.min(existing.first_seen, j.first_seen);
+        const posted_at = existing.posted_at == null ? doc.posted_at
+          : doc.posted_at == null ? existing.posted_at
+          : Math.min(existing.posted_at, doc.posted_at);
+        await ctx.db.patch(existing._id, {
+          ...doc, first_seen, posted_at, when: posted_at ?? first_seen,
+        });
         updated += 1;
       } else {
         await ctx.db.insert("jobs", doc);

@@ -53,7 +53,24 @@ function JobRow({ job: j, showSource, compact, isNew, focused, onOpen, onMark, o
           {showSource && <SourcePill source={j.source} />}
           <a
             href={j.url} target="_blank" rel="noopener" title={j.title}
-            onClick={(e) => { e.preventDefault(); onOpen(j.uid, j.url); }}
+            // This is a real link and stays one. preventDefault used to run
+            // before anything was decided, which threw away every click the
+            // browser already had a meaning for -- ctrl/cmd for a background
+            // tab, shift for a window, alt to download, middle-click. Those
+            // are handed straight back, and the row is still marked opened.
+            //
+            // A plain left click is taken over only if split view actually
+            // opened a window. onOpen returns false when it did not (the
+            // preference is off, there is no URL, or a blocker refused the
+            // popup) and then the anchor's own target="_blank" runs, so the
+            // worst case is an ordinary new tab rather than nothing at all.
+            onClick={(e) => {
+              if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+                onOpen(j.uid, null);
+                return;
+              }
+              if (onOpen(j.uid, j.url)) e.preventDefault();
+            }}
             className={cx("overflow-hidden text-ellipsis whitespace-nowrap text-text no-underline hover:text-accent-text hover:underline", titleColor)}
           >
             {j.title}
