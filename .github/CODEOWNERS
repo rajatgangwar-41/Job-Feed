@@ -1,0 +1,10 @@
+# Every path in the repository is owned by @rajatgangwar-41.
+#
+# With "Require review from Code Owners" enabled on main, this is what stops a
+# collaborator merging their own work: GitHub will not let anyone approve
+# their own pull request, so every change to main needs an approval from the
+# owner named here, whoever opened it.
+#
+# To hand out review rights later, add usernames to this line - each one then
+# counts as an approver for the paths they own.
+*       @rajatgangwar-41
