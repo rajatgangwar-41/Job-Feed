@@ -15,9 +15,14 @@ Nothing about a person crosses the wire. Saved/applied/notes/stage in the
 local database are leftovers from when this was a single-user tool; per-user
 state now belongs to Convex, keyed by Clerk id, and is never written here.
 
-Config, both from the environment (see backend/.env):
-    CONVEX_URL      https://<deployment>.convex.cloud  (or .convex.site)
-    POLLER_SECRET   the same value as `npx convex env set POLLER_SECRET ...`
+Config, from the environment (see backend/.env). The dev pair is optional;
+with both set, one scrape feeds both databases, so localhost and the
+deployed site never have to be pointed at each other:
+
+    CONVEX_URL          https://<prod>.convex.cloud  (or .convex.site)
+    POLLER_SECRET       matches `npx convex env set --prod POLLER_SECRET ...`
+    CONVEX_URL_DEV      https://<dev>.convex.cloud   (optional)
+    POLLER_SECRET_DEV   matches `npx convex env set POLLER_SECRET ...`
 """
 import json
 import os
@@ -47,15 +52,35 @@ def _load_env(path=None):
             os.environ.setdefault(key.strip(), value.strip().strip("'\""))
 
 
-def _endpoint():
-    _load_env()
-    url = (os.environ.get("CONVEX_URL") or "").strip().rstrip("/")
-    secret = os.environ.get("POLLER_SECRET") or ""
-    if not url or not secret:
-        return None, None
+def _action_url(url):
+    url = url.strip().rstrip("/")
     if url.endswith(".convex.cloud"):
         url = url[: -len(".convex.cloud")] + _ACTION_HOST
-    return url + "/push", secret
+    return url + "/push"
+
+
+def _targets():
+    """Every deployment this scraper feeds, as (label, endpoint, secret).
+
+    There is one scraper and two databases: the deployed site reads prod,
+    localhost reads dev. Pushing to both means neither environment has to be
+    switched to the other -- local development keeps seeing fresh listings
+    without ever pointing at production, and production keeps being fed while
+    someone works locally.
+
+    Each deployment has its own POLLER_SECRET, so they are configured in
+    pairs. A pair with either half missing is skipped rather than guessed at.
+    """
+    _load_env()
+    out = []
+    for label, url_key, secret_key in (
+            ("prod", "CONVEX_URL", "POLLER_SECRET"),
+            ("dev", "CONVEX_URL_DEV", "POLLER_SECRET_DEV")):
+        url = (os.environ.get(url_key) or "").strip()
+        secret = os.environ.get(secret_key) or ""
+        if url and secret:
+            out.append((label, _action_url(url), secret))
+    return out
 
 
 def _post(endpoint, secret, payload):
@@ -74,8 +99,8 @@ def push(store, config, running=False):
     the next poll will push the same rows again anyway (the ingest mutation
     upserts on uid, so re-sending is free).
     """
-    endpoint, secret = _endpoint()
-    if not endpoint:
+    targets = _targets()
+    if not targets:
         return {"skipped": "CONVEX_URL or POLLER_SECRET not set"}
 
     filters = config.get("filters", {})
@@ -106,24 +131,30 @@ def push(store, config, running=False):
         "filters": filters,
     }
 
-    sent = 0
-    try:
-        # Batched because one mutation carries the whole list, and a few
-        # thousand upserts in a single transaction is how you find Convex's
-        # limits the hard way. The metadata rides on the first batch so a
-        # failure part-way through still leaves the run's status recorded.
-        for i in range(0, len(jobs), BATCH):
-            chunk = jobs[i:i + BATCH]
-            payload = {"jobs": chunk}
-            if i == 0:
-                payload.update(meta)
-            _post(endpoint, secret, payload)
-            sent += len(chunk)
-        if not jobs:
-            _post(endpoint, secret, {"jobs": [], **meta})
-        return {"pushed": sent}
-    except urllib.error.HTTPError as e:
-        detail = e.read()[:200].decode(errors="replace")
-        return {"error": f"convex {e.code}: {detail}", "pushed": sent}
-    except Exception as e:
-        return {"error": f"{type(e).__name__}: {e}", "pushed": sent}
+    # One target failing must not stop the others: a dev deployment that has
+    # been paused should never keep listings out of production.
+    result = {}
+    for label, endpoint, secret in targets:
+        sent = 0
+        try:
+            # Batched because one mutation carries the whole list, and a few
+            # thousand upserts in a single transaction is how you find
+            # Convex's limits the hard way. The metadata rides on the first
+            # batch so a failure part-way through still leaves the run's
+            # status recorded.
+            for i in range(0, len(jobs), BATCH):
+                chunk = jobs[i:i + BATCH]
+                payload = {"jobs": chunk}
+                if i == 0:
+                    payload.update(meta)
+                _post(endpoint, secret, payload)
+                sent += len(chunk)
+            if not jobs:
+                _post(endpoint, secret, {"jobs": [], **meta})
+            result[label] = sent
+        except urllib.error.HTTPError as e:
+            detail = e.read()[:200].decode(errors="replace")
+            result[label] = f"error convex {e.code}: {detail}"
+        except Exception as e:
+            result[label] = f"error {type(e).__name__}: {e}"
+    return result
