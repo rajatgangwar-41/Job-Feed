@@ -15,6 +15,20 @@ const MAX_EVENTS = 10000;
 const MAX_STAGES = 200;
 const MAX_RUNS = 100;
 
+// What an unauthenticated caller gets. Convex queries are reachable by name
+// from anywhere -- the deployment URL ships in every browser -- so "the
+// dashboard is behind a route guard" protects nothing here; the handler has
+// to. Same shape as a real payload so the client needs no special case,
+// but carrying none of the scraper's configuration (its keyword lists and
+// excluded companies) and none of its per-source telemetry, which are a
+// signed-in user's business and nobody else's.
+const SIGNED_OUT = {
+  authed: false,
+  jobs: [], stages: [], funnel: {}, history: {},
+  filters: {}, last_poll: 0, running: false, poll_minutes: 15,
+  status: { runs: [], open: 0, saved: 0, applied_24h: 0, applied_7d: 0, applied_all: 0 },
+};
+
 // One reactive query standing in for the whole of GET /api/feed. Returning
 // the identical payload shape means the dashboard's data plumbing did not
 // have to change when the source moved from a polled HTTP endpoint to a
@@ -34,13 +48,19 @@ export const get = query({
   },
   handler: async (ctx, args) => {
     const userId = await optionalUser(ctx);
-    const now = args.now;
+    // Return before reading anything. Bailing out here rather than blanking
+    // fields at the end means the config and telemetry are never loaded for
+    // a caller who is not entitled to them, instead of being read and then
+    // remembered to be stripped.
+    if (!userId) return SIGNED_OUT;
 
+    const now = args.now;
     const state = await ctx.db.query("pollState").first();
     const runs = (await ctx.db.query("runs").take(MAX_RUNS))
       .map(({ source, ts, found, added, error }) => ({ source, ts, found, added, error: error ?? null }));
 
     const base = {
+      authed: true,
       stages: [], funnel: {}, history: {},
       filters: state?.filters ?? {},
       last_poll: state?.lastPoll ?? 0,
@@ -48,10 +68,6 @@ export const get = query({
       poll_minutes: state?.pollMinutes ?? 15,
       status: { runs, open: 0, saved: 0, applied_24h: 0, applied_7d: 0, applied_all: 0 },
     };
-    // Signed out (or Clerk still resolving): the shell renders its skeleton
-    // rather than an error, and no listing is disclosed.
-    if (!userId) return { ...base, jobs: [] };
-
     const cutoff = args.maxAgeDays ? now - args.maxAgeDays * DAY : null;
     const rows = await (cutoff == null
       ? ctx.db.query("jobs").withIndex("by_when").order("desc")

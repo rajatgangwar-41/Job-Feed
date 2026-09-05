@@ -61,7 +61,11 @@ export default function Dashboard({ opsHref = null }) {
   // seed the sidebar's exp/age radios from the server's configured defaults
   // the first time we learn them; afterwards the visitor's own choice sticks
   useEffect(() => {
-    if (!data) return;
+    // `authed` matters, not just `data`: the feed answers an unauthenticated
+    // caller with an empty payload, and seeding from that would fix a brand
+    // new account on "any experience / any age" instead of the scraper's
+    // fresher-only defaults, before Clerk had even finished resolving.
+    if (!data?.authed) return;
     if (prefs.filters.exp == null) updateFilters({ exp: serverDefaults.exp });
     if (prefs.filters.age == null) updateFilters({ age: serverDefaults.age });
     // eslint-disable-next-line react-hooks/exhaustive-deps
