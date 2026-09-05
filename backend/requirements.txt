@@ -1,2 +1,6 @@
 requests
 lxml
+# Naukri and Indeed refuse headless Chrome, so they are driven through a real
+# browser on a virtual display. The other five sources are plain HTTP and do
+# not need this.
+playwright
