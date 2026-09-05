@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useDebouncedCallback } from "use-debounce";
 import { api } from "@convex/_generated/api";
 import { DEFAULT_PREFS, DEFAULT_FILTERS, PREFS_KEY } from "@/lib/constants";
@@ -27,6 +27,11 @@ function normalise(saved) {
 }
 
 export function usePrefs() {
+  // Not the same thing as "Clerk says signed in": this is Convex confirming
+  // it holds the token. ConvexProviderWithClerk hands it over an instant
+  // after mount, and a mutation fired before that arrives with no identity
+  // at all -- which is a thrown "Not signed in", not a retry.
+  const { isAuthenticated } = useConvexAuth();
   const remote = useQuery(api.users.get);
   const savePrefs = useMutation(api.users.savePrefs);
 
@@ -60,7 +65,7 @@ export function usePrefs() {
   // 2. Then the database, exactly once. Adopting on every change would
   //    fight the person currently typing in a filter box.
   useEffect(() => {
-    if (remote === undefined || adopted.current) return;
+    if (!isAuthenticated || remote === undefined || adopted.current) return;
     adopted.current = true;
     const saved = normalise(remote?.prefs);
     if (saved) {
@@ -72,7 +77,7 @@ export function usePrefs() {
       // so moving to the database does not throw away existing settings.
       push(prefsRef.current);
     }
-  }, [remote, push]);
+  }, [isAuthenticated, remote, push]);
 
   // 3. Write through on every change: the cache immediately, the database
   //    debounced -- the search box updates prefs on each keystroke, and
@@ -80,8 +85,8 @@ export function usePrefs() {
   useEffect(() => {
     if (!hydrated) return;
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
-    if (adopted.current) push(prefs);
-  }, [prefs, hydrated, push]);
+    if (adopted.current && isAuthenticated) push(prefs);
+  }, [prefs, hydrated, push, isAuthenticated]);
 
   const update = useCallback((patch) => {
     setPrefs((p) => ({ ...p, ...(typeof patch === "function" ? patch(p) : patch) }));
@@ -103,17 +108,23 @@ export function usePrefs() {
 // Infinity until the server answers, so nothing is badged new on the strength
 // of a guess.
 export function useBootstrap() {
+  const { isAuthenticated } = useConvexAuth();
   const ensure = useMutation(api.users.ensure);
   const [visitStart, setVisitStart] = useState(Infinity);
   const ran = useRef(false);
 
   useEffect(() => {
-    if (ran.current) return;
+    // Waiting on `isAuthenticated` rather than firing on mount: this used to
+    // race the token and throw "Not signed in" whenever the effect won, and
+    // because the guard latched before the call it never tried again -- so a
+    // slow auth handshake meant the row was never written and every "new
+    // since last visit" badge silently went missing for the session.
+    if (!isAuthenticated || ran.current) return;
     ran.current = true;
     ensure()
       .then((r) => { if (r?.visitStart != null) setVisitStart(r.visitStart); })
-      .catch(() => { /* board still works; nothing gets a "new" badge */ });
-  }, [ensure]);
+      .catch(() => { ran.current = false; });   // let a later render retry
+  }, [isAuthenticated, ensure]);
 
   return visitStart;
 }
