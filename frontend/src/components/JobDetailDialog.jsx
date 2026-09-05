@@ -12,7 +12,11 @@ import { IconCash, IconCheck, IconClock, IconClose, IconExp, IconExternal, IconP
 // the two things you scan a column for -- role and company -- and tapping it
 // opens this, so the board stays legible while the detail is still one click
 // away.
-export default function JobDetailDialog({ job: j, stages, onClose, onStage, onNote }) {
+export default function JobDetailDialog({ job: j, stages, onClose, onStage, onNote, onRemoveManual }) {
+  // A hand-entered row has nothing behind it in the shared pool, so the two
+  // actions that assume one -- clearing the stage to "return it to the
+  // board", and opening its listing -- have to behave differently here.
+  const manual = j.source === "manual";
   const ref = useRef(null);
   const [text, setText] = useState(j.notes || "");
   const debouncedNote = useDebouncedCallback((v) => onNote?.(j.uid, v), 500);
@@ -34,6 +38,7 @@ export default function JobDetailDialog({ job: j, stages, onClose, onStage, onNo
     { icon: IconTag, label: "Type", value: kindOf(j) === "internship" ? "Internship" : "Full Time" },
     { icon: IconClock, label: j.posted_at ? "Posted" : "First Seen", value: `${absTime(when(j))} · ${ago(when(j))} ago` },
     j.applied_at && { icon: IconCheck, label: "Applied", value: absTime(j.applied_at) },
+    manual && j.via && { icon: IconExternal, label: "Applied Via", value: j.via },
   ].filter(Boolean);
 
   const tags = j.tags && j.tags !== "job" && j.tags !== "internship" ? j.tags : null;
@@ -101,17 +106,28 @@ export default function JobDetailDialog({ job: j, stages, onClose, onStage, onNo
         <StageSelect stages={stages} value={j.stage} onChange={(id) => onStage(j.uid, id)} />
         <button
           type="button"
-          onClick={() => { onStage(j.uid, null); ref.current.close(); }}
+          // Clearing the stage puts a scraped listing back on the board it
+          // came from. A hand-entered one has no board to go back to, so the
+          // same gesture would leave a row nothing can reach -- it is deleted
+          // outright instead.
+          onClick={() => {
+            if (manual) onRemoveManual?.(j.uid); else onStage(j.uid, null);
+            ref.current.close();
+          }}
           className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-[5px] text-[12px] font-medium text-text-dim transition-colors duration-150 hover:border-danger/40 hover:bg-danger-soft hover:text-danger"
         >
-          <IconTrash className="h-3.5 w-3.5" /> Remove
+          <IconTrash className="h-3.5 w-3.5" /> {manual ? "Delete" : "Remove"}
         </button>
-        <a
-          href={j.url} target="_blank" rel="noopener"
-          className="ml-auto flex items-center gap-1.5 rounded-md bg-accent px-3 py-[6px] text-[12.5px] font-semibold text-white no-underline transition-[filter] duration-150 hover:brightness-110"
-        >
-          Open Listing <IconExternal className="h-3.5 w-3.5" />
-        </a>
+        {j.url ? (
+          <a
+            href={j.url} target="_blank" rel="noopener"
+            className="ml-auto flex items-center gap-1.5 rounded-md bg-accent px-3 py-[6px] text-[12.5px] font-semibold text-white no-underline transition-[filter] duration-150 hover:brightness-110"
+          >
+            Open Listing <IconExternal className="h-3.5 w-3.5" />
+          </a>
+        ) : (
+          <span className="ml-auto text-[11.5px] text-text-faint">No listing link</span>
+        )}
       </div>
     </dialog>
   );

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Start both halves of jobfeed -- the Python API and the Next dev server --
-# from one terminal, instead of the two-terminal dance in the README.
+# Start all three parts of jobfeed -- the Python scraper, the Next dev
+# server, and `convex dev`, which is what actually deploys the database's
+# functions and schema -- from one terminal.
 #
-#   ./scripts/dev.sh          both halves, Ctrl-C stops both
+#   ./scripts/dev.sh          all three, Ctrl-C stops them
 #   PORT=4000 ./scripts/dev.sh    put the frontend somewhere else
 #
-# Each half keeps its own log lines, prefixed so you can tell them apart.
-# A half whose port is already serving is left alone rather than started a
+# Each part keeps its own log lines, prefixed so you can tell them apart.
+# A part whose port is already serving is left alone rather than started a
 # second time, so this is safe to run when one is already up.
 set -uo pipefail
 
@@ -25,9 +26,9 @@ BACK_PORT="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get(
 FRONT_PORT="${PORT:-3000}"
 
 if [ -t 1 ]; then
-  C_BACK=$'\e[36m'; C_FRONT=$'\e[35m'; C_WARN=$'\e[33m'; C_DIM=$'\e[2m'; C_OFF=$'\e[0m'
+  C_BACK=$'\e[36m'; C_FRONT=$'\e[35m'; C_CONVEX=$'\e[32m'; C_WARN=$'\e[33m'; C_DIM=$'\e[2m'; C_OFF=$'\e[0m'
 else
-  C_BACK=; C_FRONT=; C_WARN=; C_DIM=; C_OFF=
+  C_BACK=; C_FRONT=; C_CONVEX=; C_WARN=; C_DIM=; C_OFF=
 fi
 say()  { printf '%s\n' "${C_DIM}··${C_OFF} $*"; }
 warn() { printf '%s\n' "${C_WARN}!!${C_OFF} $*" >&2; }
@@ -91,18 +92,35 @@ else
   started=1
 fi
 
+# The database's own half. Convex functions and schema live in frontend/convex
+# but do not ship with `next dev` -- they run on the deployment, and only
+# `convex dev` puts them there. Leaving it out meant every edit under
+# convex/ was silently ignored: the board kept answering from whatever was
+# last deployed, so a new field could be written by the scraper, accepted by
+# the HTTP action's older copy, and dropped before it reached a table --
+# looking for all the world like a frontend bug.
+#
+# It watches and redeploys on save, which is the point; it also generates
+# convex/_generated, so the frontend will not even compile without a run.
+if [ -n "$(grep -sE '^CONVEX_DEPLOYMENT=.+' "$ROOT/frontend/.env.local")" ]; then
+  launch "$ROOT/frontend" "${C_CONVEX}convex  ${C_OFF}${C_DIM}│${C_OFF} " npx convex dev
+  started=1
+else
+  warn "no CONVEX_DEPLOYMENT in frontend/.env.local — skipping convex dev (see README 'First-time setup')"
+fi
+
 if [ "$started" = 0 ]; then
-  say "both halves were already running — nothing to start"
+  say "everything was already running — nothing to start"
   trap - INT TERM EXIT
   exit 0
 fi
 
 say "board → ${C_FRONT}http://localhost:$FRONT_PORT${C_OFF}   api → ${C_BACK}http://127.0.0.1:$BACK_PORT/api/feed${C_OFF}"
-say "${C_DIM}Ctrl-C stops both${C_OFF}"
+say "${C_DIM}Ctrl-C stops all of them${C_OFF}"
 
-# Either half exiting on its own is a failure worth surfacing -- shut the
-# other down too rather than leaving half a stack running.
+# Any one exiting on its own is a failure worth surfacing -- shut the rest
+# down too rather than leaving a partial stack running.
 wait -n
 # A Ctrl-C also lands here, via the interrupted wait -- only say this when
-# the half really did fall over on its own.
-[ "$stopping" = 1 ] || warn "one half exited — shutting the other down"
+# a part really did fall over on its own.
+[ "$stopping" = 1 ] || warn "one part exited — shutting the others down"

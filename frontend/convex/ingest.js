@@ -35,6 +35,7 @@ export const push = internalMutation({
     lastPoll: v.optional(v.number()),
     running: v.optional(v.boolean()),
     pollMinutes: v.optional(v.number()),
+    pollSeconds: v.optional(v.number()),
     filters: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
@@ -75,11 +76,13 @@ export const push = internalMutation({
     if (args.lastPoll !== undefined) patch.lastPoll = args.lastPoll;
     if (args.running !== undefined) patch.running = args.running;
     if (args.pollMinutes !== undefined) patch.pollMinutes = args.pollMinutes;
+    if (args.pollSeconds !== undefined) patch.pollSeconds = args.pollSeconds;
     if (args.filters !== undefined) patch.filters = args.filters;
     if (state) await ctx.db.patch(state._id, patch);
     else await ctx.db.insert("pollState", {
       lastPoll: patch.lastPoll ?? 0, running: patch.running ?? false,
-      pollMinutes: patch.pollMinutes ?? 15, filters: patch.filters,
+      pollMinutes: patch.pollMinutes ?? 15, pollSeconds: patch.pollSeconds,
+      filters: patch.filters,
     });
 
     return { added, updated };

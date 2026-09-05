@@ -83,3 +83,12 @@ export function matchQuery(j, q) {
   cache.set(j.uid, result);
   return result;
 }
+
+// A poll's wall-clock length. Seconds below a minute, m:ss above it -- the
+// number is read to answer "does a poll still fit inside its interval", so a
+// bare "247s" would make the reader do the division themselves.
+export function duration(secs) {
+  if (secs == null) return null;
+  const s = Math.max(0, Math.round(secs));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+}

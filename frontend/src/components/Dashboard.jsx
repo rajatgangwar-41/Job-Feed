@@ -6,6 +6,7 @@ import BoardView from "./BoardView";
 import TrackerView from "./TrackerView";
 import Toasts from "./Toasts";
 import HelpDialog from "./HelpDialog";
+import ManualJobDialog from "./ManualJobDialog";
 import RowMenu from "./RowMenu";
 import FilterChips from "./FilterChips";
 import { BoardSkeleton } from "./Skeleton";
@@ -15,7 +16,7 @@ import { useToasts } from "@/hooks/useToasts";
 import { useBoardActions } from "@/hooks/useBoardActions";
 import { postPoll } from "@/lib/api";
 import { passes, hasActiveFilters } from "@/lib/filters";
-import { normCo, ago, srcName } from "@/lib/format";
+import { normCo, srcName, absTime, duration } from "@/lib/format";
 import { deriveFlagsForStage } from "@/lib/pipeline";
 import { DEFAULT_FILTERS } from "@/lib/constants";
 import { cx } from "@/lib/cx";
@@ -33,21 +34,24 @@ export default function Dashboard({ opsHref = null }) {
   // boundary the "new" badges compare against.
   const visitStart = useBootstrap();
   const { data, args: feedArgs } = useFeed(prefs.filters.age, prefs.filters.exp);
-  const { mark, setNote, setStage, setStages } = useBoardActions(feedArgs);
+  const { mark, setNote, setStage, setStages, addManual, removeManual } = useBoardActions(feedArgs);
   const { toasts, toast, dismiss } = useToasts();
 
   const [focusedUid, setFocusedUid] = useState(null);
   const [menu, setMenu] = useState(null); // { anchor, job }
   const [helpOpen, setHelpOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const searchRef = useRef(null);
 
-  // re-rendered every 30s so "polled Xm ago" and "new" badges stay fresh
-  // between polls; `now` (not a bare Date.now() call in the render body)
-  // keeps the status-line math a pure function of state
-  const [now, setNow] = useState(() => Date.now());
+  // Re-rendered every 30s so the relative timestamps children render with
+  // `ago()` -- card ages, the per-source "last run" line -- do not sit frozen
+  // between polls. Only the re-render matters here, not the value, which is
+  // why nothing reads it: the countdown that used to need a clock in this
+  // component now keeps its own, at one second, inside PollRing.
+  const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30000);
+    const id = setInterval(() => tick((n) => n + 1), 30000);
     return () => clearInterval(id);
   }, []);
 
@@ -125,6 +129,24 @@ export default function Dashboard({ opsHref = null }) {
     setStage({ uid, stage }).catch(() => toast("Could Not Save — Check Your Connection"));
   }, [setStage, toast]);
 
+  // Rethrows so the dialog can keep itself open and show the error, rather
+  // than closing over a save that never happened.
+  const onAddManual = useCallback(async (fields) => {
+    try {
+      await addManual(fields);
+      toast(`Added · ${fields.title}`);
+    } catch (e) {
+      toast("Could Not Add That Application");
+      throw e;
+    }
+  }, [addManual, toast]);
+
+  const onRemoveManual = useCallback((uid) => {
+    removeManual({ uid })
+      .then(() => toast("Application Deleted"))
+      .catch(() => toast("Could Not Delete That Application"));
+  }, [removeManual, toast]);
+
   const onStagesChange = useCallback((newStages) => {
     // The mutation validates an exact column shape, so anything the board
     // hung on a stage object locally is dropped here rather than rejected.
@@ -134,10 +156,28 @@ export default function Dashboard({ opsHref = null }) {
     setStages({ stages }).catch(() => toast("Could Not Save The Columns"));
   }, [setStages, toast]);
 
+  // The backend answers 202 the instant it spawns the scrape thread and never
+  // reports back that it finished -- and it only writes `running` to Convex
+  // once the scrape is already over, so `data.running` is false throughout.
+  // Clicking Refresh therefore changed nothing on screen. This is the missing
+  // half: remember when the click happened locally, and treat the next push
+  // landing in Convex (which is what moves `last_poll`) as the finish line.
+  const [pollStartedAt, setPollStartedAt] = useState(null);
   const poll = useCallback(async () => {
     const ok = await postPoll();
-    if (!ok) toast("Could Not Reach The Poller — Is The Local Backend Running?");
+    if (!ok) {
+      toast("Could Not Reach The Poller — Is The Local Backend Running?");
+      return;
+    }
+    const started = Date.now();
+    setPollStartedAt(started);
+    toast("Polling All Sources — This Takes A Few Minutes");
+    // A scraper killed mid-run would otherwise leave the button animating for
+    // ever. Guarded on identity so a later click's state is not cleared.
+    setTimeout(() => setPollStartedAt((t) => (t === started ? null : t)), 10 * 60 * 1000);
   }, [toast]);
+  const polling = !!data?.running
+    || (pollStartedAt != null && (data?.last_poll || 0) * 1000 < pollStartedAt);
 
   // ---------- opening a listing ----------
   // A page cannot tile browser windows, so "split view" is a popup opened at
@@ -258,16 +298,20 @@ export default function Dashboard({ opsHref = null }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [allJobs, focusedUid, prefs.view, helpOpen, menu, mobileSidebarOpen, openJob, setFlag, update, updateFilters, toggleSidebar]);
 
-  // ---------- status line ----------
-  const errs = (data?.status?.runs || []).filter((r) => r.error);
-  let statusText = "Loading…";
-  let statusKind = "";
-  if (data) {
-    const nextIn = data.last_poll ? Math.max(0, Math.round((data.last_poll + (data.poll_minutes || 15) * 60 - now / 1000) / 60)) : null;
-    statusText = data.running ? "Polling Now…" : data.last_poll ? `Polled ${ago(data.last_poll)} Ago · Next In ~${nextIn}m` : "Not Polled Yet";
-    if (errs.length) statusText += ` · ${errs.map((r) => srcName(r.source)).join(", ")} Failing`;
-    statusKind = data.running ? "busy" : errs.length ? "bad" : "";
-  }
+  // ---------- poll status ----------
+  // Handed to the header as values, not as a sentence. The sentence grew by
+  // one source name per failure and wrapped the toolbar onto a second row;
+  // PollRing draws the same information in a box that never changes size.
+  const runs = data?.status?.runs || [];
+  const failing = runs.filter((r) => r.error).map((r) => srcName(r.source));
+  // Newest run of each outcome. `runs` holds the latest attempt per source,
+  // so the max over each group is when a source last managed to return rows
+  // and when one last blew up -- which are different moments, and both worth
+  // seeing: a fetch that succeeded ten minutes ago next to a failure from
+  // two hours ago reads very differently from the reverse.
+  const maxTs = (rows) => (rows.length ? Math.max(...rows.map((r) => r.ts)) : null);
+  const lastOk = maxTs(runs.filter((r) => !r.error));
+  const lastFail = maxTs(runs.filter((r) => r.error));
 
   const compact = prefs.density === "compact";
 
@@ -277,7 +321,8 @@ export default function Dashboard({ opsHref = null }) {
         query={prefs.filters.q} onQueryChange={(q) => updateFilters({ q })}
         view={prefs.view} onViewChange={(v) => update({ view: v })}
         trackerCount={data?.status?.saved || null}
-        statusKind={statusKind} statusText={statusText} polling={!!data?.running} onRefresh={poll}
+        lastPoll={data?.last_poll || null} pollMinutes={data?.poll_minutes || 15}
+        failing={failing} polling={polling} onRefresh={poll}
         density={prefs.density} onToggleDensity={() => update((p) => ({ density: p.density === "compact" ? "cozy" : "compact" }))}
         theme={prefs.theme} onCycleTheme={() => update((p) => ({ theme: { auto: "dark", dark: "light", light: "auto" }[p.theme] }))}
         onToggleSidebar={toggleSidebar} sidebarOpen={!prefs.sideHidden} onOpenHelp={() => setHelpOpen(true)} searchRef={searchRef}
@@ -316,6 +361,16 @@ export default function Dashboard({ opsHref = null }) {
               {nNew > 0 && <> · <span className="font-semibold text-accent-text">{nNew} New</span></>}
               {openCount !== visibleJobs.length && !prefs.filters.done && <span> Of {openCount}</span>}
             </span>
+            {(lastOk || lastFail) && (
+              <span className="whitespace-nowrap text-[12px] text-text-faint">
+                {lastOk && (
+                  <>Last Fetch <span className="text-text-dim">{absTime(lastOk)}</span>
+                    {data?.poll_seconds ? <span className="text-text-dim"> · Took {duration(data.poll_seconds)}</span> : null}</>
+                )}
+                {lastOk && lastFail && " · "}
+                {lastFail && <>Last Failure <span className="text-danger">{absTime(lastFail)}</span></>}
+              </span>
+            )}
             <div className="flex flex-1 flex-wrap items-center gap-1.5">
               <FilterChips filters={prefs.filters} serverDefaults={serverDefaults} updateFilters={updateFilters} onClearAll={resetFilters} />
             </div>
@@ -340,6 +395,7 @@ export default function Dashboard({ opsHref = null }) {
                     stages={data?.stages || []} funnel={data?.funnel || {}} history={data?.history || {}}
                     tab={prefs.trackerTab} onTabChange={(trackerTab) => update({ trackerTab })}
                     onNote={onNote} onStage={onStage} onStagesChange={onStagesChange}
+                    onAddManual={() => setManualOpen(true)} onRemoveManual={onRemoveManual}
                   />
                 </div>
               </>
@@ -350,6 +406,13 @@ export default function Dashboard({ opsHref = null }) {
 
       <Toasts toasts={toasts} dismiss={dismiss} />
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {manualOpen && (
+        <ManualJobDialog
+          stages={data?.stages || []}
+          onClose={() => setManualOpen(false)}
+          onSave={onAddManual}
+        />
+      )}
       <RowMenu
         anchor={menu?.anchor} job={menu?.job} onClose={closeMenu}
         onHideCompany={hideCompanyAction} onCopyLink={copyLinkAction} onOpenTab={openTabAction} onToggleSeen={toggleSeenAction}

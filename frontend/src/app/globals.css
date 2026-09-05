@@ -123,6 +123,24 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 @keyframes pulse-soft { 50% { opacity: .35; } }
 .animate-pulse-soft { animation: pulse-soft 1s infinite; }
 
+/* A band of light sweeping left to right, for work whose length is not known
+   in advance -- a scrape takes anywhere from forty seconds to several
+   minutes, so a progress bar would be a lie and a spinner says only "busy".
+   Laid over the element's own background rather than replacing it, so the
+   button keeps its label and stays readable while it runs. The host needs
+   `relative` and `overflow-hidden`; the band itself is inert to the pointer
+   so the button underneath stays clickable. */
+@keyframes wave-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.animate-wave { position: relative; overflow: hidden; }
+.animate-wave::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent 0%, var(--accent-soft) 45%, var(--accent-soft) 55%, transparent 100%);
+  animation: wave-sweep 1.15s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-wave::after { animation: pulse-soft 1.4s ease-in-out infinite; transform: none; }
+}
+
 /* Mount/display-change entrance: plays whenever the element goes from having
    no box (unmounted, or display:none via the `hidden` utility) to being
    rendered -- used for view switches, popovers and dialogs so they settle in

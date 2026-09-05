@@ -112,12 +112,28 @@ class Store:
         """
         if not rows:
             return 0
-        refresh = ("posted", "posted_at", "exp_min", "pay", "title",
+        refresh = ("posted", "exp_min", "pay", "title",
                    "company", "location", "tags", "desc_checked")
+        sets = [f"{c}=COALESCE(excluded.{c}, jobs.{c})" for c in refresh]
+        # posted_at only ever moves EARLIER, never later.
+        #
+        # Naukri relabels listings "Just now" for as long as the recruiter
+        # keeps bumping them, and posted_at is derived from that text at scrape
+        # time -- so refreshing it outright gave a job we had held for half an
+        # hour a timestamp of three minutes ago, on every single poll. The card
+        # then read "just now" for ever while its "new" badge (which compares
+        # first_seen, and is right) stayed off, and because the board sorts on
+        # COALESCE(posted_at, first_seen) DESC those bumped listings sat
+        # permanently above genuinely new ones.
+        #
+        # MIN() is NULL if either side is, hence the COALESCE around it: a
+        # source that starts publishing a date we did not have before still
+        # gets to fill it in.
+        sets.append("posted_at=COALESCE(MIN(jobs.posted_at, excluded.posted_at),"
+                    " jobs.posted_at, excluded.posted_at)")
         sql = (f"INSERT INTO jobs ({', '.join(COLS)}, first_seen) "
                f"VALUES ({', '.join('?' * (len(COLS) + 1))}) "
-               f"ON CONFLICT(uid) DO UPDATE SET "
-               + ", ".join(f"{c}=COALESCE(excluded.{c}, jobs.{c})" for c in refresh))
+               f"ON CONFLICT(uid) DO UPDATE SET " + ", ".join(sets))
         now = time.time()
         with self._lock:
             cur = self._db.cursor()

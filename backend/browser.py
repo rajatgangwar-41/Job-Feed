@@ -21,13 +21,30 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from contextlib import contextmanager
 
-PROFILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".browser-profile")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+# One profile per source, so the two can run at the same time. Chrome permits
+# a single process per profile, so while they shared one they had to be
+# scraped in sequence -- and that sequence was the whole length of a poll.
+#
+# Indeed keeps the original directory rather than being renamed onto a tidier
+# one: it holds the Cloudflare clearance cookie described above, and a move
+# would throw that away for no benefit.
+PROFILES = {
+    "indeed": os.path.join(_HERE, ".browser-profile"),
+    "naukri": os.path.join(_HERE, ".browser-profile-naukri"),
+}
 
 XVFB_DISPLAY = ":99"
 _xvfb = None            # the shared virtual X server, started on first use
+# Both sources reach _display() at once now, and starting Xvfb is not
+# idempotent -- two threads past the `_xvfb is None` check would race to spawn
+# a second server on :99, and the loser would fail.
+_display_lock = threading.Lock()
 
 
 def _display_alive(disp):
@@ -56,11 +73,18 @@ def _display():
     Without Xvfb installed we fall back to the visible display, which works
     but flashes a window on every poll.
     """
-    global _xvfb
     if os.environ.get("JOBFEED_DISPLAY"):          # explicit override wins
         return os.environ["JOBFEED_DISPLAY"]
     if not shutil.which("Xvfb"):
         return os.environ.get("DISPLAY")
+    # Serialised: both browser sources ask for a display at the same moment
+    # now, and the checks below are read-modify-write on a process handle.
+    with _display_lock:
+        return _ensure_xvfb()
+
+
+def _ensure_xvfb():
+    global _xvfb
     # A previous run may still own :99 (restart, or a crash that left it up).
     # Reuse a live one rather than spawning a doomed Xvfb on every poll; the
     # socket alone isn't proof, so actually talk to the server.
@@ -81,13 +105,35 @@ def _display():
             return os.environ.get("DISPLAY")
     return XVFB_DISPLAY
 
-AGO_RE = re.compile(
-    r"(just posted|today|posted \d+\+? days? ago|active \d+\+? days? ago|"
-    r"\d+\+?\s*(?:minute|hour|day|week|month)s?\s+ago)", re.I)
+
+def _holders(profile):
+    """PIDs of Chrome processes holding exactly this profile directory.
+
+    The argument is compared whole, against the process's actual argv, rather
+    than searched for in the joined command line. That matters now there is
+    more than one profile: `.browser-profile` is a prefix of
+    `.browser-profile-naukri`, so a substring test would have Indeed's
+    reclaim killing Naukri's browser mid-scrape -- precisely the collision
+    the separate profiles exist to prevent.
+    """
+    needle = f"--user-data-dir={profile}"
+    me = os.getpid()
+    out = []
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit() or int(pid) == me:
+            continue
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                args = f.read().decode("utf8", "ignore").split("\0")
+        except OSError:
+            continue
+        if needle in args and any("/chrome" in a for a in args):
+            out.append(int(pid))
+    return out
 
 
-def _reclaim_profile():
-    """Kill any Chrome still holding our profile directory.
+def _reclaim_profile(profile):
+    """Kill any Chrome still holding this profile directory.
 
     Chrome allows one process per profile. If a poll is interrupted -- the
     service restarts, or the machine is busy and we time out -- the browser
@@ -95,45 +141,20 @@ def _reclaim_profile():
     "Opening in existing browser session". The profile is ours alone, so
     reclaiming it is safe; this never touches the user's own Chrome.
     """
-    needle = f"--user-data-dir={PROFILE}"
-    me = os.getpid()
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit() or int(pid) == me:
-            continue
+    for pid in _holders(profile):
         try:
-            with open(f"/proc/{pid}/cmdline", "rb") as f:
-                cmd = f.read().replace(b"\0", b" ").decode("utf8", "ignore")
+            os.kill(pid, 15)
         except OSError:
-            continue
-        if needle in cmd and "/chrome" in cmd:
-            try:
-                os.kill(int(pid), 15)
-            except OSError:
-                pass
+            pass
     for _ in range(50):                       # let the lock clear
-        if not _profile_busy():
+        if not _holders(profile):
             return
         time.sleep(0.1)
 
 
-def _profile_busy():
-    needle = f"--user-data-dir={PROFILE}"
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit():
-            continue
-        try:
-            with open(f"/proc/{pid}/cmdline", "rb") as f:
-                cmd = f.read().replace(b"\0", b" ").decode("utf8", "ignore")
-        except OSError:
-            continue
-        if needle in cmd and "/chrome" in cmd:
-            return True
-    return False
-
-
 @contextmanager
-def _page():
-    _reclaim_profile()
+def _page(profile):
+    _reclaim_profile(profile)
     display = _display()
     if not display:
         raise RuntimeError(
@@ -142,7 +163,7 @@ def _page():
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         ctx = p.chromium.launch_persistent_context(
-            user_data_dir=PROFILE, channel="chrome", headless=False,
+            user_data_dir=profile, channel="chrome", headless=False,
             viewport={"width": 1440, "height": 900},
             # On a Wayland session Chrome picks --ozone-platform=wayland and
             # talks to the compositor directly, ignoring DISPLAY -- so the
@@ -171,22 +192,11 @@ def _txt(node, sel):
     return " ".join((el.inner_text() or "").split()) or None
 
 
-def _posted(text):
-    """Pull a relative age out of a card's text, normalised for rel_epoch."""
-    m = AGO_RE.search(text or "")
-    if not m:
-        return None
-    s = m.group(1).strip()
-    if re.match(r"just posted|today", s, re.I):
-        return "Just now"
-    return re.sub(r"^(posted|active)\s+", "", s, flags=re.I).title()
-
-
 # --- Naukri ------------------------------------------------------------
 
 def naukri(cfg):
     rows = []
-    with _page() as page:
+    with _page(PROFILES["naukri"]) as page:
         for q in cfg.get("queries", []):
             slug = re.sub(r"[^a-z0-9]+", "-", q["keyword"].lower()).strip("-")
             # experience=0 is the single biggest win here: without it only
@@ -266,7 +276,7 @@ from sources import experience_from_text  # noqa: E402  (shared parser)
 def indeed(cfg):
     from sources import rel_epoch
     rows = []
-    with _page() as page:
+    with _page(PROFILES["indeed"]) as page:
         for q in cfg.get("queries", []):
             # Indeed publishes no date or experience on its cards, so both
             # filters have to be pushed into the URL instead of applied later.

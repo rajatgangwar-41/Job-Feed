@@ -56,6 +56,7 @@ http.route({
       lastPoll: body.last_poll ?? undefined,
       running: body.running ?? undefined,
       pollMinutes: body.poll_minutes ?? undefined,
+      pollSeconds: body.poll_seconds ?? undefined,
       filters: body.filters ?? undefined,
     });
     return new Response(JSON.stringify(result), {

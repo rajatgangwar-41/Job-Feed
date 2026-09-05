@@ -3,7 +3,7 @@
   "poll_minutes": 10,
   "filters": {
     "max_age_days": 2,
-    "max_experience_years": 0,
+    "max_experience_years": 2,
     "exclude_titles": [
       "senior",
       "sr.",
@@ -147,7 +147,22 @@
       "tableau",
       "prompt engineering",
       "technology",
-      "tech"
+      "tech",
+      "nextjs",
+      "next.js",
+      "genai",
+      "generative ai",
+      "rag",
+      "langchain",
+      "agentic",
+      "mern",
+      "expo",
+      "graphql",
+      "computer vision",
+      "data scientist",
+      "analytics",
+      "vector search",
+      "vector database"
     ],
     "exclude_companies": [
       "pledge india",
@@ -160,7 +175,8 @@
     "jobs_first": true,
     "require_checked": [
       "indeed"
-    ]
+    ],
+    "per_source": 250
   },
   "sources": {
     "internshala": {
@@ -210,6 +226,50 @@
         {
           "kind": "internships",
           "keyword": "java"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "react native"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "react"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "artificial intelligence"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "machine learning"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "devops"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "data science"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "node js"
+        },
+        {
+          "kind": "jobs",
+          "keyword": "typescript"
+        },
+        {
+          "kind": "internships",
+          "keyword": "react native"
+        },
+        {
+          "kind": "internships",
+          "keyword": "artificial intelligence"
+        },
+        {
+          "kind": "internships",
+          "keyword": "machine learning"
         }
       ]
     },
@@ -245,6 +305,66 @@
           "query": "graduate engineer trainee",
           "locations": "india",
           "limit": 30
+        },
+        {
+          "query": "react native developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "react js developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "frontend developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "node js developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "ai ml engineer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "generative ai engineer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "devops engineer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "data analyst",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "qa automation engineer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "cyber security engineer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "blockchain developer",
+          "locations": "india",
+          "limit": 30
+        },
+        {
+          "query": "embedded software engineer",
+          "locations": "india",
+          "limit": 30
         }
       ]
     },
@@ -274,9 +394,41 @@
         {
           "keyword": "software engineer",
           "pages": 2
+        },
+        {
+          "keyword": "react native developer",
+          "pages": 2
+        },
+        {
+          "keyword": "react js developer",
+          "pages": 2
+        },
+        {
+          "keyword": "frontend developer",
+          "pages": 2
+        },
+        {
+          "keyword": "node js developer",
+          "pages": 2
+        },
+        {
+          "keyword": "ai ml engineer",
+          "pages": 2
+        },
+        {
+          "keyword": "devops engineer",
+          "pages": 1
+        },
+        {
+          "keyword": "data analyst",
+          "pages": 1
+        },
+        {
+          "keyword": "test automation engineer",
+          "pages": 1
         }
       ],
-      "experience": 0
+      "experience": 2
     },
     "indeed": {
       "enabled": true,
@@ -296,9 +448,25 @@
         {
           "keyword": "full stack developer",
           "location": "India"
+        },
+        {
+          "keyword": "react native developer",
+          "location": "India"
+        },
+        {
+          "keyword": "react developer",
+          "location": "India"
+        },
+        {
+          "keyword": "ai engineer",
+          "location": "India"
+        },
+        {
+          "keyword": "devops engineer",
+          "location": "India"
         }
       ],
-      "max_desc_fetch": 60
+      "max_desc_fetch": 100
     },
     "cutshort": {
       "enabled": true,
@@ -311,6 +479,27 @@
         },
         {
           "path": "javascript-jobs"
+        },
+        {
+          "path": "react-native-jobs"
+        },
+        {
+          "path": "reactjs-jobs"
+        },
+        {
+          "path": "nodejs-jobs"
+        },
+        {
+          "path": "typescript-jobs"
+        },
+        {
+          "path": "devops-jobs"
+        },
+        {
+          "path": "machine-learning-ml-jobs"
+        },
+        {
+          "path": "data-analytics-jobs"
         }
       ]
     },
@@ -325,6 +514,27 @@
         },
         {
           "path": "role/l/full-stack-engineer/india"
+        },
+        {
+          "path": "role/l/react-native-developer/india"
+        },
+        {
+          "path": "role/l/frontend-engineer/india"
+        },
+        {
+          "path": "role/l/machine-learning-engineer/india"
+        },
+        {
+          "path": "role/l/devops-engineer/india"
+        },
+        {
+          "path": "role/l/data-engineer/india"
+        },
+        {
+          "path": "role/l/data-scientist/india"
+        },
+        {
+          "path": "role/l/qa-engineer/india"
         }
       ]
     },

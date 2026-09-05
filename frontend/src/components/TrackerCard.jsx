@@ -17,7 +17,7 @@ import { IconGrip, IconClose, IconNote } from "./icons";
 // `overlay` renders the floating drag preview (see DragOverlay in
 // PipelineBoard) -- same look, none of the live wiring, since the real card
 // underneath keeps it.
-export default function TrackerCard({ job: j, stages, onStage, onNote, overlay }) {
+export default function TrackerCard({ job: j, stages, onStage, onNote, onRemoveManual, overlay }) {
   const [detailOpen, setDetailOpen] = useState(false);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -98,7 +98,7 @@ export default function TrackerCard({ job: j, stages, onStage, onNote, overlay }
       {detailOpen && (
         <JobDetailDialog
           job={j} stages={stages} onClose={() => setDetailOpen(false)}
-          onStage={onStage} onNote={onNote}
+          onStage={onStage} onNote={onNote} onRemoveManual={onRemoveManual}
         />
       )}
     </>

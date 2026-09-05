@@ -38,25 +38,23 @@ def rel_epoch(text):
     return time.time() - int(m.group(1)) * _SPAN[m.group(2)] if m else None
 
 
-def iso_epoch(text):
-    """LinkedIn gives '2026-09-01', Unstop '2026-09-01 14:26'."""
-    if not text:
-        return None
-    from datetime import datetime
-    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(text[:len(datetime.now().strftime(fmt))], fmt).timestamp()
-        except ValueError:
-            pass
-    return None
-
-
 def _throttle(host):
+    """Pace requests per host, without pacing the whole process.
+
+    Sources run concurrently now, so sleeping inside the lock was no longer
+    survivable: one thread waiting out Internshala's delay held the lock that
+    every other thread needs to check its own, unrelated host, and the poll
+    was serial again by accident. Instead the next slot is *reserved* under
+    the lock -- an instant operation -- and the wait happens outside it. Two
+    threads on the same host still queue behind each other, one at a time,
+    which is the point; two threads on different hosts no longer interact.
+    """
     with _throttle_lock:
-        wait = CRAWL_DELAY - (time.time() - _last_hit.get(host, 0))
-        if wait > 0:
-            time.sleep(wait)
-        _last_hit[host] = time.time()
+        slot = max(time.time(), _last_hit.get(host, 0) + CRAWL_DELAY)
+        _last_hit[host] = slot
+    wait = slot - time.time()
+    if wait > 0:
+        time.sleep(wait)
 
 
 def get(url, as_json=False, headers=None):

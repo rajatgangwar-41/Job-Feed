@@ -59,5 +59,11 @@ export function useBoardActions(feedArgs) {
       )),
     })));
 
-  return { mark, setNote, setStage, setStages };
+  // No optimistic update: the server mints the uid, so there is nothing to
+  // insert locally that would survive the real result arriving. The feed is a
+  // live subscription, so the row shows up on its own a moment later.
+  const addManual = useMutation(api.board.addManual);
+  const removeManual = useMutation(api.board.removeManual);
+
+  return { mark, setNote, setStage, setStages, addManual, removeManual };
 }

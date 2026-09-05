@@ -25,7 +25,7 @@ const MAX_RUNS = 100;
 const SIGNED_OUT = {
   authed: false,
   jobs: [], stages: [], funnel: {}, history: {},
-  filters: {}, last_poll: 0, running: false, poll_minutes: 15,
+  filters: {}, last_poll: 0, running: false, poll_minutes: 15, poll_seconds: null,
   status: { runs: [], open: 0, saved: 0, applied_24h: 0, applied_7d: 0, applied_all: 0 },
 };
 
@@ -66,6 +66,7 @@ export const get = query({
       last_poll: state?.lastPoll ?? 0,
       running: state?.running ?? false,
       poll_minutes: state?.pollMinutes ?? 15,
+      poll_seconds: state?.pollSeconds ?? null,
       status: { runs, open: 0, saved: 0, applied_24h: 0, applied_7d: 0, applied_all: 0 },
     };
     const cutoff = args.maxAgeDays ? now - args.maxAgeDays * DAY : null;
@@ -99,6 +100,32 @@ export const get = query({
         notes: u?.notes ?? "", stage: u?.stage ?? null,
       };
     });
+
+    // Hand-entered listings. These have no row in the shared pool to join
+    // to, so the map above cannot reach them -- they are appended from the
+    // person's own rows, in the same shape, and are the only jobs on this
+    // board that came from anywhere but the scraper.
+    //
+    // Deliberately exempt from the age and experience filters: those exist
+    // to narrow a pool of thousands nobody chose, and someone who typed a
+    // listing in by hand has already chosen it. Hiding their own application
+    // because it is three days old would be a bug, not a filter.
+    for (const u of mine) {
+      if (!u.custom) continue;
+      const c = u.custom;
+      jobs.push({
+        uid: u.uid, source: "manual", title: c.title, company: c.company ?? null,
+        location: c.location ?? null, pay: c.pay ?? null,
+        posted: null, posted_at: c.applied_at ?? c.created_at,
+        exp_min: c.exp_min ?? null, url: c.url ?? null, tags: c.tags ?? null,
+        desc_checked: null, first_seen: c.created_at,
+        via: c.via ?? null,
+        saved: u.saved ?? 0, applied: u.applied ?? 0,
+        applied_at: u.applied_at ?? null, flagged: u.flagged ?? 0,
+        closed: u.closed ?? 0, opened: u.opened ?? 0,
+        notes: u.notes ?? "", stage: u.stage ?? null,
+      });
+    }
 
     const stageRows = (await ctx.db.query("stages")
       .withIndex("by_user", (ix) => ix.eq("userId", userId)).take(MAX_STAGES))

@@ -92,7 +92,7 @@ def _post(endpoint, secret, payload):
         return json.load(r)
 
 
-def push(store, config, running=False):
+def push(store, config, running=False, seconds=None):
     """Send the curated pool plus poller telemetry. Returns a short summary.
 
     Never raises: a Convex outage must not take the scraper down with it, and
@@ -128,6 +128,7 @@ def push(store, config, running=False):
         "last_poll": time.time(),
         "running": running,
         "poll_minutes": config.get("poll_minutes", 15),
+        "poll_seconds": round(seconds, 1) if seconds is not None else None,
         "filters": filters,
     }
 

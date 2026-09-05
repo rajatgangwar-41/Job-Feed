@@ -75,6 +75,25 @@ export default defineSchema({
     opened: v.optional(v.number()),
     notes: v.optional(v.string()),
     stage: v.optional(v.union(v.string(), v.null())),
+    // A listing the person entered themselves -- something they applied to
+    // off one of the scraped boards. It lives here rather than in `jobs`
+    // precisely because `jobs` is shared: an entry in the pool would show up
+    // on everybody's board. Present means this row IS the listing, so the
+    // feed synthesises it instead of joining to the pool.
+    custom: v.optional(v.object({
+      title: v.string(),
+      company: v.optional(v.string()),
+      location: v.optional(v.string()),
+      pay: v.optional(v.string()),
+      url: v.optional(v.string()),
+      exp_min: v.optional(v.union(v.number(), v.null())),
+      tags: v.optional(v.string()),
+      // Free text: where they actually applied ("LinkedIn", "Referral",
+      // the company's own careers page).
+      via: v.optional(v.string()),
+      applied_at: v.optional(v.union(v.number(), v.null())),
+      created_at: v.number(),
+    })),
   })
     .index("by_user", ["userId"])
     .index("by_user_uid", ["userId", "uid"]),
@@ -121,5 +140,9 @@ export default defineSchema({
     // seeds its experience/age radios from these, so the board's defaults
     // keep coming from whatever the poller is actually configured to fetch.
     filters: v.optional(v.any()),
+    // How long the last poll took, wall clock. Sources run concurrently, so
+    // this is the slowest one rather than the sum, and it is the number that
+    // tells you whether a poll still fits inside its interval.
+    pollSeconds: v.optional(v.number()),
   }),
 });

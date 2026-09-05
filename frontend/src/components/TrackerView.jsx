@@ -2,12 +2,12 @@
 import { useMemo } from "react";
 import PipelineBoard from "./PipelineBoard";
 import GraphView from "./GraphView";
-import { IconCalendar, IconChart, IconCheck, IconClock, IconKanban, IconLayers } from "./icons";
+import { IconCalendar, IconChart, IconCheck, IconClock, IconKanban, IconLayers, IconPlus } from "./icons";
 import { cx } from "@/lib/cx";
 
 const TABS = [["pipeline", "Pipeline", IconKanban], ["graph", "Graph", IconChart]];
 
-export default function TrackerView({ allJobs, query, status, stages, funnel, history, tab, onTabChange, onNote, onStage, onStagesChange }) {
+export default function TrackerView({ allJobs, query, status, stages, funnel, history, tab, onTabChange, onNote, onStage, onStagesChange, onAddManual, onRemoveManual }) {
   // "In Pipeline" is who is sitting on a live column right now -- the whole
   // point of the board -- so it belongs next to the applied counters rather
   // than only being derivable by adding column headers up by eye.
@@ -25,6 +25,18 @@ export default function TrackerView({ allJobs, query, status, stages, funnel, hi
           <Stat value={status.applied_all} label="Applied In Total" color="var(--success)" icon={IconCheck} />
           <Stat value={inPipeline} label="In Pipeline" color="var(--warning)" icon={IconLayers} />
         </div>
+        {/* Sits with the tabs rather than among the stat tiles: the tiles
+            report, this acts. A board that can only see what it scraped
+            undercounts every application made through a referral or a
+            company's own careers page, which is most of the ones that go
+            anywhere. */}
+        <button
+          type="button" onClick={onAddManual}
+          title="Add a role you applied to elsewhere"
+          className="flex flex-none items-center gap-1.5 rounded-[10px] border border-dashed border-border-strong bg-surface px-3 text-[12.5px] font-medium text-text-dim shadow-[var(--shadow-card)] transition-colors duration-150 hover:border-accent hover:bg-accent-soft hover:text-accent-text active:scale-[0.98]"
+        >
+          <IconPlus className="h-3.5 w-3.5" /> Add Application
+        </button>
         <div className="flex flex-none items-stretch gap-0.5 rounded-[10px] border border-border bg-surface p-1 shadow-[var(--shadow-card)]">
           {TABS.map(([id, label, Icon]) => (
             <button
@@ -42,7 +54,7 @@ export default function TrackerView({ allJobs, query, status, stages, funnel, hi
       <div className="min-h-0">
         {tab === "graph"
           ? <GraphView allJobs={allJobs} stages={stages} funnel={funnel} history={history} />
-          : <PipelineBoard allJobs={allJobs} query={query} stages={stages} onStage={onStage} onNote={onNote} onStagesChange={onStagesChange} />}
+          : <PipelineBoard allJobs={allJobs} query={query} stages={stages} onStage={onStage} onNote={onNote} onStagesChange={onStagesChange} onRemoveManual={onRemoveManual} />}
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import os
 import threading
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -37,55 +38,85 @@ _polling = threading.Lock()
 _state = {"last_poll": 0, "running": False}
 
 
+def _scrape(name, cfg):
+    """One source, start to finish. Returns {name: outcome}; never raises,
+    because a thread that dies takes its source's result with it."""
+    try:
+        # merge the global filters in: Indeed can only filter at the URL
+        merged = {**CONFIG.get("filters", {}), **cfg}
+        if name == "indeed":
+            # reading experience costs a page load each, so tell the
+            # adapter which listings we already have it for
+            merged["known_uids"] = DB.uids_with_exp("indeed")
+            merged["pending"] = DB.unchecked(
+                "indeed", limit=merged.get("max_desc_fetch", 30),
+                max_age_days=merged.get("max_age_days"))
+        rows = sources.ADAPTERS[name](merged)
+        added = DB.add(rows)
+        DB.log(name, len(rows), added)
+        if not rows:
+            DB.log(name, 0, 0, "no rows parsed - the site layout may have changed")
+        return {name: {"found": len(rows), "added": added}}
+    except Exception as e:
+        msg = f"{type(e).__name__}: {e}"
+        DB.log(name, 0, 0, msg)
+        traceback.print_exc()
+        return {name: {"error": msg}}
+
+
 def poll_once():
-    """Run every enabled source. One bad source never stops the others."""
+    """Run every enabled source, all at once.
+
+    Sources used to run one at a time, which made a poll as long as the sum
+    of its parts -- eight minutes once the config grew to 85 queries, with
+    every source but one sitting idle at any moment. They are independent:
+    different sites, different hosts, a Store that takes a lock per write,
+    and -- since browser.py gained a profile per source -- a Chrome each. So
+    a poll is now as long as its slowest single source rather than the sum,
+    which is Indeed, and Indeed is slow because it opens a page per listing
+    to read the experience its cards omit.
+    """
     if not _polling.acquire(blocking=False):
         return {"skipped": "a poll is already running"}
     _state["running"] = True
     result = {}
+    started = time.time()
     try:
-        for name, cfg in CONFIG["sources"].items():
-            if not cfg.get("enabled", True):
-                continue
-            try:
-                # merge the global filters in: Indeed can only filter at the URL
-                merged = {**CONFIG.get("filters", {}), **cfg}
-                if name == "indeed":
-                    # reading experience costs a page load each, so tell the
-                    # adapter which listings we already have it for
-                    merged["known_uids"] = DB.uids_with_exp("indeed")
-                    merged["pending"] = DB.unchecked(
-                        "indeed", limit=merged.get("max_desc_fetch", 30),
-                        max_age_days=merged.get("max_age_days"))
-                rows = sources.ADAPTERS[name](merged)
-                added = DB.add(rows)
-                DB.log(name, len(rows), added)
-                result[name] = {"found": len(rows), "added": added}
-                if not rows:
-                    DB.log(name, 0, 0, "no rows parsed - the site layout may have changed")
-            except Exception as e:
-                msg = f"{type(e).__name__}: {e}"
-                DB.log(name, 0, 0, msg)
-                result[name] = {"error": msg}
-                traceback.print_exc()
+        enabled = [(n, c) for n, c in CONFIG["sources"].items() if c.get("enabled", True)]
+        with ThreadPoolExecutor(max_workers=max(1, len(enabled)),
+                                thread_name_prefix="scrape") as pool:
+            futures = [pool.submit(_scrape, n, c) for n, c in enabled]
+            for f in as_completed(futures):
+                result.update(f.result())
         _state["last_poll"] = time.time()
     finally:
+        elapsed = time.time() - started
         _state["running"] = False
         _polling.release()
     # Outside the finally: the push is not part of scraping, and a Convex
     # outage must not leave the poll lock held or the running flag stuck.
-    result["_convex"] = convex_push.push(DB, CONFIG)
+    result["seconds"] = round(elapsed, 1)
+    result["_convex"] = convex_push.push(DB, CONFIG, seconds=elapsed)
     print(f"[poll] {json.dumps(result)}", flush=True)
     return result
 
 
 def poller():
     while True:
+        started = time.time()
         try:
             poll_once()
         except Exception:
             traceback.print_exc()
-        time.sleep(max(60, CONFIG.get("poll_minutes", 15) * 60))
+        # Sleep the REMAINDER of the interval, not the whole of it on top of
+        # the work. Sleeping the full interval afterwards made the real cycle
+        # `poll_minutes + however long a scrape took`, while the board
+        # predicts the next poll as `last_poll + poll_minutes` -- so its
+        # countdown reached zero and sat there for the length of one scrape.
+        # At 33 queries that was a few seconds and went unnoticed; at 85 it is
+        # minutes of a timer that looks stuck.
+        elapsed = time.time() - started
+        time.sleep(max(60, CONFIG.get("poll_minutes", 15) * 60 - elapsed))
 
 
 class Handler(BaseHTTPRequestHandler):

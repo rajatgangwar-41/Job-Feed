@@ -11,7 +11,7 @@ import { IconChevronLeft, IconChevronRight, IconClose, IconLayers, IconPlus, Ico
 // them by drag-and-drop (or the card's own stage dropdown, for anyone who'd
 // rather not drag). Columns themselves are user data, not a fixed set --
 // add/rename/reorder/delete all just post a new ordered `stages` array.
-export default function PipelineBoard({ allJobs, query, stages, onStage, onNote, onStagesChange }) {
+export default function PipelineBoard({ allJobs, query, stages, onStage, onNote, onStagesChange, onRemoveManual }) {
   const jobsByStage = useMemo(() => {
     const map = {};
     for (const s of stages) map[s.id] = [];
@@ -79,7 +79,7 @@ export default function PipelineBoard({ allJobs, query, stages, onStage, onNote,
           <Column
             key={s.id} stage={s} jobs={jobsByStage[s.id] || []} stages={stages}
             dragging={!!activeJob}
-            onStage={onStage} onNote={onNote}
+            onStage={onStage} onNote={onNote} onRemoveManual={onRemoveManual}
             onRename={(name) => renameColumn(s.id, name)}
             onDelete={() => deleteColumn(s.id)}
             onMoveLeft={i > 0 ? () => moveColumn(s.id, -1) : null}
@@ -95,7 +95,7 @@ export default function PipelineBoard({ allJobs, query, stages, onStage, onNote,
   );
 }
 
-function Column({ stage, jobs, stages, dragging, onStage, onNote, onRename, onDelete, onMoveLeft, onMoveRight }) {
+function Column({ stage, jobs, stages, dragging, onStage, onNote, onRemoveManual, onRename, onDelete, onMoveLeft, onMoveRight }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(stage.name);
@@ -175,7 +175,7 @@ function Column({ stage, jobs, stages, dragging, onStage, onNote, onRename, onDe
               <span className="text-[12px] font-medium">{isOver ? "Drop To Move Here" : dragging ? "Drop Here" : "No Cards Yet"}</span>
             </div>
           )
-          : jobs.map((j) => <TrackerCard key={j.uid} job={j} stages={stages} onStage={onStage} onNote={onNote} />)}
+          : jobs.map((j) => <TrackerCard key={j.uid} job={j} stages={stages} onStage={onStage} onNote={onNote} onRemoveManual={onRemoveManual} />)}
       </div>
     </section>
   );

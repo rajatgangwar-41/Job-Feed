@@ -4,10 +4,11 @@ import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { cx } from "@/lib/cx";
 import { IconFilter, IconSearch, IconClose, IconRefresh, IconDensity, IconHelp, IconChart, THEME_ICON } from "./icons";
+import PollRing from "./PollRing";
 
 export default function Header({
   query, onQueryChange, view, onViewChange, trackerCount,
-  statusKind, statusText, polling, onRefresh,
+  lastPoll, pollMinutes, failing, polling, onRefresh,
   density, onToggleDensity, theme, onCycleTheme,
   onToggleSidebar, sidebarOpen, onOpenHelp, searchRef, opsHref,
 }) {
@@ -39,10 +40,7 @@ export default function Header({
         <span className="grid h-6 w-6 place-items-center rounded-[7px] bg-gradient-to-br from-accent to-violet text-[12px] font-extrabold text-white">JW</span>
         Job Watch
       </div>
-      <div className="hidden items-center gap-1.5 text-xs whitespace-nowrap text-text-dim sm:flex">
-        <span className={cx("h-[7px] w-[7px] rounded-full", statusKind === "bad" ? "bg-danger" : polling ? "animate-pulse-soft bg-accent" : "bg-success")} />
-        {statusText}
-      </div>
+      <PollRing lastPoll={lastPoll} pollMinutes={pollMinutes} polling={polling} failing={failing} />
       <div className="relative order-5 mx-auto flex w-full max-w-[520px] flex-1 basis-full items-center sm:order-none sm:basis-auto">
         <IconSearch className="pointer-events-none absolute left-2.5 h-[15px] w-[15px] text-text-dim" />
         <input
@@ -72,8 +70,16 @@ export default function Header({
             would only make the button feel stuck for the 45-100s a real
             poll can take. The spinning icon is the "in progress" signal. */}
         <button type="button" onClick={onRefresh} title={polling ? "Polling…" : "Poll All Sources Now"}
-          className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[13px] transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 active:scale-[0.97]">
-          <IconRefresh className={cx("h-3.5 w-3.5 transition-transform", polling && "animate-spin")} />Refresh
+          className={cx(
+            // min-w + centred so swapping the label for "Polling…" cannot
+            // change the button's width and nudge the toolbar around.
+            "flex min-w-[104px] items-center justify-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[13px] transition-colors duration-150 hover:border-border-strong hover:bg-surface-2 active:scale-[0.97]",
+            // A scrape runs for minutes with no progress to report, so the
+            // button carries a sweeping band rather than a percentage.
+            polling && "animate-wave border-accent text-accent-text",
+          )}>
+          <IconRefresh className={cx("h-3.5 w-3.5 transition-transform", polling && "animate-spin")} />
+          {polling ? "Polling…" : "Refresh"}
         </button>
         <IconButton title="Toggle Density (D)" active={density === "compact"} onClick={onToggleDensity}><IconDensity className="h-4 w-4" /></IconButton>
         {/* Rendered only when the server decided this account is on the

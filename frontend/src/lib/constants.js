@@ -13,11 +13,14 @@ export const SRC_COLOR = {
   cutshort: "#14b8a6", // teal
   wellfound: "#65a30d", // olive/lime -- their black+lime rebrand, darkened for white-text contrast
   yc: "#ea580c", // Y Combinator's iconic orange
+  manual: "#64748b", // slate -- deliberately the quietest chip on the board,
+  // because a hand-entered listing is not a source you can go back and scrape.
 };
 
 export const SRC_NAME = {
   yc: "Y Combinator", internshala: "Internshala", foundit: "Foundit", naukri: "Naukri",
   indeed: "Indeed", cutshort: "Cutshort", wellfound: "Wellfound",
+  manual: "Added By You",
 };
 
 export const KINDS = [

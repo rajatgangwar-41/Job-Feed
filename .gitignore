@@ -1,7 +1,12 @@
 # --- never commit: credentials and session state -----------------------
-# Chrome profile: holds Cookies, Login Data, and the Cloudflare clearance
-# Indeed depends on. Keep it locally (see README), never publish it.
+# Chrome profiles: each holds Cookies, Login Data, and (Indeed's) the
+# Cloudflare clearance it depends on. Keep them locally (see README), never
+# publish them. The glob covers the per-source directories -- Naukri and
+# Indeed get one each so they can be scraped at the same time -- because
+# `.browser-profile/` alone does not match `.browser-profile-naukri/`, and
+# 38MB of cookie jar was one `git add .` from being published.
 .browser-profile/
+.browser-profile-*/
 *.cookies
 cookies.txt
 .env
